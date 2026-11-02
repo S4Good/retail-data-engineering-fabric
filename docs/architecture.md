@@ -1,6 +1,6 @@
-`# Architecture`
+# Architecture
 
-````mermaid`.
+```mermaid
 flowchart TD
 
     A[CSV Sources<br/>Customers / Orders / Products]

@@ -1,0 +1,9 @@
+customer_id,first_name,last_name,email,country,created_at
+1001,Anna,Schmidt,anna.schmidt@example.de,Germany,2026-01-12
+1002,David,Meyer,david.meyer@example.de,Germany,2026-02-03
+1003,Sarah,Khan,sarah.khan@example.de,Germany,2026-02-14
+1004,Lucas,Martin,lucas.martin@example.fr,France,2026-03-01
+1005,Sofia,Rossi,sofia.rossi@example.it,Italy,2026-03-11
+1006,Ahmed,Ali,ahmed.ali@example.de,Germany,2026-04-09
+1007,Emma,Jansen,emma.jansen@example.nl,Netherlands,2026-05-17
+1008,Daniel,Nowak,daniel.nowak@example.pl,Poland,2026-06-02

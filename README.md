@@ -1,19 +1,22 @@
-
 # Retail Data Engineering with Microsoft Fabric
 
-End-to-end retail data engineering portfolio project built with **Microsoft Fabric**, demonstrating data ingestion, Medallion Architecture, PySpark transformations, orchestration, dimensional modeling, and SQL analytics.
+End-to-end retail data engineering portfolio project built with **Microsoft Fabric**, demonstrating data ingestion, Medallion Architecture, PySpark transformations, Delta Lake, pipeline orchestration, dimensional modeling, SQL analytics, Direct Lake semantic modeling, DAX, and Power BI reporting.
 
-## Project Goal
+---
 
-The goal of this project is to simulate a modern retail data platform that integrates data from multiple business domains such as:
+## Project Overview
 
-* Customers / CRM
-* Orders / Webshop
-* Products / ERP
+This project simulates a modern retail data platform that integrates data from multiple business domains:
 
-The data is ingested, cleaned, transformed, modeled, and prepared for analytics using Microsoft Fabric.
+* **Customers / CRM**
+* **Orders / Webshop**
+* **Products / ERP**
 
-The project was built as a practical Data Engineering learning and portfolio project.
+The goal is to build an end-to-end data engineering workflow in Microsoft Fabric:
+
+**ingest → validate → transform → orchestrate → model → analyze → visualize**
+
+The project was developed as a practical **Data Engineering portfolio project** and as hands-on preparation for the **Microsoft Fabric Data Engineer Associate (DP-700)** certification.
 
 ---
 
@@ -38,14 +41,16 @@ Fabric Warehouse
     ↓
 Star Schema
     ↓
-SQL Analytics
+Direct Lake Semantic Model
     ↓
-Visualizations / Power BI
+SQL / DAX Analytics
+    ↓
+Power BI Dashboard
 ```
 
 A detailed architecture diagram is available here:
 
-[View architecture](docs/architecture.md)
+[View Architecture](docs/architecture.md)
 
 ---
 
@@ -60,98 +65,82 @@ A detailed architecture diagram is available here:
 | Processing                  | Apache Spark                        |
 | Storage Format              | Delta Lake                          |
 | Orchestration               | Fabric Data Pipelines               |
-| Data Warehouse              | Fabric Warehouse                    |
-| Analytics                   | T-SQL                               |
-| Modeling                    | Medallion Architecture, Star Schema |
+| Warehouse                   | Fabric Warehouse                    |
+| Analytics                   | T-SQL, DAX                          |
+| Data Modeling               | Medallion Architecture, Star Schema |
+| Semantic Layer              | Direct Lake Semantic Model          |
+| Visualization               | Power BI                            |
 | Version Control / Portfolio | GitHub                              |
 
 ---
 
-## Data Architecture
+# Data Architecture
 
-### Bronze Layer
+## Bronze Layer
 
-Raw source data is ingested into the Fabric Lakehouse.
+Raw source data is ingested into the Fabric Lakehouse using **Dataflow Gen2**.
 
-Tables include:
+Tables:
 
 * `bronze_customers`
 * `bronze_orders`
 * `bronze_products`
 
-The Bronze layer remains close to the original source structure.
+The Bronze layer intentionally remains close to the source structure and acts as the raw ingestion layer.
+
+### Lakehouse
+
+![Fabric Lakehouse](screenshots/Lakehouse.png)
 
 ---
 
-### Silver Layer
+## Silver Layer
 
-The Silver layer contains cleaned and validated data.
+The Silver layer contains cleaned, validated, and standardized data.
 
 Implemented transformations include:
 
 * datatype validation
 * NULL checks
+* duplicate detection
 * duplicate removal
 * text normalization
 * business-rule validation
 * standardized customer and product information
 
-Tables include:
+Tables:
 
 * `silver_customers`
 * `silver_orders`
 * `silver_orders_pyspark`
 * `silver_products`
 
-Orders were implemented both with **Dataflow Gen2** and **PySpark** to compare low-code and code-based transformation approaches.
+The Orders transformation was implemented using both **Dataflow Gen2** and **PySpark**.
 
-The outputs were validated against each other to ensure equivalent results.
+This allowed the low-code and code-based approaches to be compared and validated against each other.
 
----
-
-### Gold Layer
-
-The Gold layer combines cleaned customer, product, and order data into a business-ready dataset:
-
-`gold_sales`
-
-The Gold dataset contains attributes such as:
-
-* order ID
-* customer
-* country
-* product
-* category
-* quantity
-* unit price
-* sales amount
-* order date
-
-Example business calculation:
-
-```text
-sales_amount = quantity * unit_price
-```
+The resulting datasets produced equivalent results.
 
 ---
 
-## PySpark Transformation
+# PySpark Transformation
 
-The project contains a PySpark notebook:
+The project contains a code-based Silver transformation:
 
-`notebooks/nb_transform_orders_silver.ipynb`
+[`notebooks/nb_transform_orders_silver.ipynb`](notebooks/nb_transform_orders_silver.ipynb)
 
 The notebook performs:
 
-* reading Bronze orders from the Lakehouse
+* reading `bronze_orders` from the Lakehouse
 * NULL validation
 * duplicate detection
-* validation of `quantity > 0`
-* Silver-layer filtering and deduplication
-* writing the result as a Delta table
-* validation against the Dataflow Gen2 implementation
+* business-rule validation
+* filtering invalid records
+* deduplication
+* writing a Delta table
+* validating the PySpark output against Dataflow Gen2
 
-Example:
+Example transformation:
 
 ```python
 df_orders_silver = (
@@ -164,40 +153,21 @@ df_orders_silver = (
 )
 ```
 
----
-
-## Pipeline Orchestration
-
-The Fabric pipeline `pl_retail_medallion` orchestrates the complete workflow.
-
-The ingestion processes for customers, products, and orders can run independently.
-
-Silver transformations are executed after their corresponding Bronze ingestion succeeds.
-
-The production Orders path uses PySpark:
+The resulting table is written to:
 
 ```text
-ingest_orders
-    ↓
-transform_orders_pyspark
-    ↓
-build_gold_sales
+silver_orders_pyspark
 ```
 
-The pipeline demonstrates:
+### PySpark Notebook
 
-* dependency management
-* parallel execution
-* success conditions
-* notebook integration
-* Dataflow Gen2 integration
-* pipeline monitoring
+![PySpark Notebook](screenshots/Pyspark%20notebook.png)
 
 ---
 
-## Data Quality
+# Data Quality
 
-Several data-quality checks were implemented during transformation.
+Data quality checks were implemented before writing data into the Silver layer.
 
 Examples:
 
@@ -209,57 +179,196 @@ quantity > 0
 order_id must be unique
 ```
 
-PySpark was also used to compare the output of the low-code Dataflow Gen2 transformation against the code-based implementation.
+Additional validation was performed by comparing the Dataflow Gen2 and PySpark implementations.
 
-Both implementations produced identical results.
+Both implementations returned:
+
+```text
+Row count: identical
+Rows only in Dataflow: 0
+Rows only in PySpark: 0
+```
+
+This verified that both transformation approaches produced equivalent results.
 
 ---
 
-## Fabric Warehouse
+# Gold Layer
+
+The Gold layer combines cleaned Customer, Product, and Order data into the business-ready dataset:
+
+```text
+gold_sales
+```
+
+The table contains attributes including:
+
+* order ID
+* customer ID
+* customer name
+* country
+* product ID
+* product name
+* category
+* quantity
+* unit price
+* sales amount
+* order date
+
+A business metric is calculated during transformation:
+
+```text
+sales_amount = quantity × unit_price
+```
+
+---
+
+# Pipeline Orchestration
+
+The Fabric pipeline:
+
+```text
+pl_retail_medallion
+```
+
+orchestrates the complete workflow.
+
+Customer, product, and order ingestion can execute independently before downstream transformations are triggered.
+
+The production Orders path uses the PySpark notebook:
+
+```text
+ingest_orders
+      ↓
+transform_orders_pyspark
+      ↓
+build_gold_sales
+```
+
+The pipeline demonstrates:
+
+* activity dependencies
+* parallel execution
+* success conditions
+* Dataflow Gen2 integration
+* Notebook integration
+* Bronze → Silver → Gold orchestration
+* pipeline monitoring
+* end-to-end execution
+
+### Fabric Pipeline
+
+![Fabric Pipeline](screenshots/Fabric%20pipeline.png)
+
+---
+
+# Fabric Warehouse
 
 A Fabric Warehouse was created as the analytical serving layer:
 
-`retail_warehouse`
+```text
+retail_warehouse
+```
 
-The warehouse uses a simple Star Schema.
+The Gold data is transformed into a dimensional **Star Schema**.
 
-### Dimension Tables
+## Dimension Tables
 
 * `dim_customer`
 * `dim_product`
 * `dim_date`
 
-### Fact Table
+## Fact Table
 
 * `fact_sales`
 
-Simplified model:
+Conceptually:
 
 ```text
                  dim_customer
-                      |
+                       |
+                       |
 dim_product —— fact_sales —— dim_date
 ```
 
-The SQL used to create the model is available in:
+The SQL used to create the dimensional model is available here:
 
-`sql/create_star_schema.sql`
+[`sql/create_star_schema.sql`](sql/create_star_schema.sql)
 
 ---
 
-## SQL Analytics
+# Star Schema
 
-Example analytical queries are stored in:
+The analytical model separates descriptive business attributes from measurable events.
 
-`sql/analytics_queries.sql`
+### `dim_customer`
 
-Examples include:
+Contains customer-related attributes such as:
 
-* revenue by country
-* revenue by product
-* revenue by category
-* monthly revenue
-* top customers by revenue
+* customer ID
+* customer name
+* country
+
+### `dim_product`
+
+Contains:
+
+* product ID
+* product name
+* category
+* unit price
+
+### `dim_date`
+
+Contains:
+
+* order date
+* year
+* month
+* day
+* month name
+
+### `fact_sales`
+
+Contains:
+
+* order ID
+* customer ID
+* product ID
+* order date
+* quantity
+* unit price
+* sales amount
+
+### Warehouse / Semantic Model
+
+![Warehouse Star Schema](screenshots/warehouse%20schema.png)
+
+Relationships follow a standard one-to-many model:
+
+```text
+dim_customer (1) ──── (*) fact_sales
+dim_product  (1) ──── (*) fact_sales
+dim_date     (1) ──── (*) fact_sales
+```
+
+Single-direction filtering is used from the dimension tables toward the fact table.
+
+---
+
+# SQL Analytics
+
+Analytical SQL queries are stored in:
+
+[`sql/analytics_queries.sql`](sql/analytics_queries.sql)
+
+The queries answer business questions including:
+
+* Which country generates the most revenue?
+* Which products generate the highest sales?
+* Which product categories perform best?
+* How does revenue develop over time?
+* Which customers generate the most revenue?
 
 Example:
 
@@ -276,7 +385,91 @@ ORDER BY total_revenue DESC;
 
 ---
 
-## Repository Structure
+# Direct Lake Semantic Model
+
+A Direct Lake semantic model named:
+
+```text
+retail_sales_model
+```
+
+was created on top of the Fabric Warehouse.
+
+The model contains:
+
+* `fact_sales`
+* `dim_customer`
+* `dim_product`
+* `dim_date`
+
+This provides the semantic layer used by Power BI for analytical reporting.
+
+---
+
+# DAX Measures
+
+Reusable DAX measures were created in the semantic model.
+
+## Total Revenue
+
+```DAX
+Total Revenue =
+SUM(fact_sales[sales_amount])
+```
+
+## Total Orders
+
+```DAX
+Total Orders =
+DISTINCTCOUNT(fact_sales[order_id])
+```
+
+## Average Order Value
+
+```DAX
+Average Order Value =
+DIVIDE([Total Revenue], [Total Orders])
+```
+
+These measures are reused throughout the Power BI report.
+
+---
+
+# Power BI Dashboard
+
+A Power BI report named:
+
+```text
+Retail Data Engineering - Sales Dashboard
+```
+
+was created using the Direct Lake semantic model.
+
+The dashboard includes:
+
+### KPI Cards
+
+* Total Revenue
+* Total Orders
+* Average Order Value
+
+### Analytical Visuals
+
+* Revenue by Country
+* Revenue by Product
+* Revenue by Category
+* Revenue over Time
+* Top Customers by Revenue
+
+### Final Dashboard
+
+![Power BI Sales Dashboard](screenshots/Data%20Visualization.png)
+
+The reporting layer demonstrates how the engineered data platform can support business analytics after ingestion, transformation, modeling, and orchestration are complete.
+
+---
+
+# Repository Structure
 
 ```text
 retail-data-engineering-fabric/
@@ -284,7 +477,9 @@ retail-data-engineering-fabric/
 ├── README.md
 │
 ├── data/
-│   └── sample source datasets
+│   ├── customers.csv
+│   ├── orders.csv
+│   └── products.csv
 │
 ├── notebooks/
 │   └── nb_transform_orders_silver.ipynb
@@ -297,67 +492,170 @@ retail-data-engineering-fabric/
 │   └── architecture.md
 │
 └── screenshots/
-    └── Fabric pipeline, Lakehouse, Warehouse and analytics screenshots
+    ├── Data Visualization.png
+    ├── Fabric pipeline.png
+    ├── Lakehouse.png
+    ├── Pyspark notebook.png
+    └── warehouse schema.png
 ```
 
 ---
 
-## Engineering Concepts Demonstrated
+# Engineering Concepts Demonstrated
 
 This project demonstrates practical experience with:
 
+### Data Engineering
+
 * ETL / ELT
-* Microsoft Fabric
-* Dataflow Gen2
-* Lakehouse architecture
-* OneLake
-* Bronze / Silver / Gold architecture
-* Apache Spark / PySpark
-* Delta tables
-* Data quality validation
+* data ingestion
+* data transformation
+* data cleansing
+* data validation
+* data quality
 * pipeline orchestration
-* dependency management
-* dimensional modeling
+
+### Microsoft Fabric
+
+* OneLake
+* Fabric Lakehouse
+* Dataflow Gen2
+* Fabric Data Pipelines
+* Fabric Notebooks
+* Fabric Warehouse
+* Direct Lake
+
+### Data Architecture
+
+* Medallion Architecture
+* Bronze / Silver / Gold layers
 * Star Schema
 * Fact and Dimension tables
-* SQL analytics
-* troubleshooting and debugging
-* low-code vs code-based data transformation
+* dimensional modeling
+
+### Programming & Querying
+
+* PySpark
+* Apache Spark
+* Power Query
+* T-SQL
+* DAX
+
+### Analytics
+
+* semantic modeling
+* business measures
+* Power BI
+* KPI reporting
+* analytical visualization
+
+### Engineering Practices
+
+* low-code vs code-based transformations
+* validation between implementations
+* dependency management
+* debugging
+* troubleshooting
+* reproducible SQL scripts
+* GitHub project documentation
 
 ---
 
-## Example Business Questions
+# End-to-End Data Flow
 
-The resulting analytical model can answer questions such as:
+The completed project demonstrates the following workflow:
+
+```text
+Customers / Orders / Products
+            ↓
+        CSV Sources
+            ↓
+      Dataflow Gen2
+            ↓
+     Bronze Lakehouse
+            ↓
+   Data Cleaning & Validation
+            ↓
+ Dataflow Gen2 / PySpark
+            ↓
+        Silver Layer
+            ↓
+      Business Joins
+            ↓
+         Gold Sales
+            ↓
+     Fabric Warehouse
+            ↓
+        Star Schema
+            ↓
+  Direct Lake Semantic Model
+            ↓
+      DAX Measures
+            ↓
+       Power BI Report
+```
+
+---
+
+# Example Business Questions
+
+The resulting platform can answer questions such as:
 
 * Which countries generate the most revenue?
-* Which products produce the highest sales?
+* Which products generate the highest revenue?
 * Which product categories perform best?
-* How does revenue develop over time?
-* Which customers generate the most revenue?
+* How does revenue change over time?
+* Which customers contribute the most revenue?
+* What is the average order value?
+* How many distinct orders were processed?
 
 ---
 
-## Future Improvements
+# Future Improvements
 
-Planned extensions include:
+Possible future extensions include:
 
-* Power BI dashboard
 * incremental data loading
 * larger synthetic datasets
+* parameterized pipelines
 * automated data-quality reporting
 * improved error handling
-* pipeline alerting and monitoring
+* pipeline alerts and monitoring
 * CI/CD
 * Git-based deployment workflows
 * Infrastructure as Code
-* streaming / Real-Time Intelligence
+* streaming ingestion
+* Microsoft Fabric Real-Time Intelligence
+* Eventhouse
 * KQL analytics
 
 ---
 
-## About This Project
+# Key Learning Outcomes
 
-This project was developed as a hands-on Data Engineering portfolio project while preparing for the **Microsoft Fabric Data Engineer (DP-700)** certification.
+Through this project I practiced how individual Data Engineering technologies fit together as one platform rather than learning them in isolation.
 
-The focus is not only on using individual Fabric features, but on understanding how ingestion, transformation, orchestration, storage, data modeling, and analytics work together as an end-to-end data platform.
+The project covers the complete path from:
+
+```text
+Raw Data
+→ Ingestion
+→ Lakehouse
+→ Transformation
+→ Data Quality
+→ PySpark
+→ Orchestration
+→ Warehouse
+→ Dimensional Modeling
+→ Semantic Modeling
+→ Analytics
+→ Visualization
+```
+
+---
+
+# About This Project
+
+This project was developed as a hands-on **Data Engineering portfolio project** while preparing for the **Microsoft Fabric Data Engineer Associate (DP-700)** certification.
+
+The focus was not only on learning individual Microsoft Fabric features, but on understanding how ingestion, transformation, orchestration, storage, data quality, dimensional modeling, semantic modeling, analytics, and visualization work together in an end-to-end data platform.
